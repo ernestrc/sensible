@@ -3,14 +3,15 @@ package editor
 import (
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"path"
 	"strings"
 )
 
+// inspired by i3-sensible-editor
+// The order has been altered to make the world a better place
+var editors = []string{"$EDITOR", "$VISUAL", "vim", "nvim", "vi", "emacs", "nano", "pico", "qe", "mg", "jed", "gedit", "mc-edit"}
 var basePath = []string{"/usr/local/bin", "/usr/bin", "/usr/sbin", "/bin"}
-var editors = []string{"$EDITOR", "$VISUAL", "nvim", "vim", "emacs", "nano", "vi", "pico", "qe", "mg", "jed", "gedit", "mc-edit"}
 
 var userPath []string
 var selected string
@@ -51,40 +52,106 @@ func findExec(name string) (execPath string, err error) {
 	return "", nil
 }
 
-func tmpFile() string {
-	return fmt.Sprintf("/tmp/sedit_%d", rand.Int())
+func (e *Editor) clean() {
+	e.proc = nil
+	e.procState = nil
 }
 
-// FindEditor TODO ...
-func FindEditor() (string, error) {
-	var err error
+type Editor struct {
+	path      string
+	proc      *os.Process
+	procState *os.ProcessState
+	// extra process attributes to be passed to the editor process
+	ProcAttrs *os.ProcAttr
+}
+
+func NewEditor(abspath string) *Editor {
+	return &Editor{path: abspath}
+}
+
+func FindEditor() (editor *Editor, err error) {
+	// cached
 	if selected != "" {
-		return selected, nil
+		return NewEditor(selected), nil
 	}
 	for _, editor := range editors {
 		selected, err = findExec(editor)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if selected != "" {
-			return selected, nil
+			return NewEditor(selected), nil
 		}
 	}
 
-	return "", fmt.Errorf("could not find an editor; please set $VISUAL or $EDITOR environment variables or install one of the preferred editors: %v", editors)
+	return nil, fmt.Errorf("FindEditor: could not find an editor; please set $VISUAL or $EDITOR environment variables or install one of the following editors: %v", editors)
 }
 
-// NewSession TODO ...
-func NewSession(in string) (out string, err error) {
-	var path string
-	var f *os.File
-	var p *os.Process
-	var s *os.ProcessState
-	var outBytes []byte
+func (e *Editor) Edit(f *os.File) error {
+	var err error
 
-	if path, err = FindEditor(); err != nil {
-		return
+	if err = e.Start(f); err != nil {
+		return err
 	}
+
+	if err = e.Wait(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (e *Editor) Start(f *os.File) error {
+	if e.proc != nil {
+		return fmt.Errorf("Editor.Start: there is already an ongoing session")
+	}
+
+	args := []string{"", f.Name()}
+
+	var fds = []*os.File{os.Stdin, os.Stdout, os.Stderr, f}
+	var procAttrs *os.ProcAttr
+	if e.ProcAttrs == nil {
+		procAttrs = &os.ProcAttr{
+			Dir:   "",
+			Env:   nil,
+			Files: fds,
+			Sys:   nil,
+		}
+	} else {
+		procAttrs = e.ProcAttrs
+	}
+
+	var err error
+	if e.proc, err = os.StartProcess(e.path, args, procAttrs); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (e *Editor) Wait() error {
+	var err error
+
+	if e.proc == nil {
+		return fmt.Errorf("Editor.Wait: no process is currently running")
+	}
+
+	if e.procState, err = e.proc.Wait(); err != nil {
+		return err
+	}
+
+	if !e.procState.Success() {
+		return fmt.Errorf("Editor.Wait: editor process exited with non 0 status: %s", e.procState.String())
+	}
+
+	e.clean()
+
+	return nil
+}
+
+func (e *Editor) EditTmp(in string) (out string, err error) {
+	var f *os.File
+	var outBytes []byte
 
 	if f, err = ioutil.TempFile("/tmp", "sedit_"); err != nil {
 		return
@@ -94,26 +161,7 @@ func NewSession(in string) (out string, err error) {
 		return
 	}
 
-	args := []string{"", f.Name()}
-
-	var fds = []*os.File{os.Stdin, os.Stdout, os.Stderr, f}
-	var procAttrs = os.ProcAttr{
-		Dir:   "",
-		Env:   nil,
-		Files: fds,
-		Sys:   nil,
-	}
-
-	if p, err = os.StartProcess(path, args, &procAttrs); err != nil {
-		return
-	}
-
-	if s, err = p.Wait(); err != nil {
-		return
-	}
-
-	if !s.Success() {
-		err = fmt.Errorf("editor process exited with non 0 status: %s", s.String())
+	if err = e.Edit(f); err != nil {
 		return
 	}
 
