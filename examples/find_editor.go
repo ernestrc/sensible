@@ -7,11 +7,11 @@ import (
 )
 
 func main() {
-	editor, err := editor.FindEditor()
+	e, err := editor.FindEditor()
 
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println(editor.GetPath())
+	fmt.Println(e.GetPath())
 }
