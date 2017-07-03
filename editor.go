@@ -15,6 +15,7 @@ var basePath = []string{"/usr/local/bin", "/usr/bin", "/usr/sbin", "/bin"}
 
 var userPath []string
 var selected string
+var selectedEditor *Editor
 
 func init() {
 	editors[0] = os.Getenv("EDITOR")
@@ -94,12 +95,25 @@ func FindEditor() (editor *Editor, err error) {
 	return nil, fmt.Errorf("FindEditor: could not find an editor; please set $VISUAL or $EDITOR environment variables or install one of the following editors: %v", editors)
 }
 
+// Edit will attempt to edit the passed files with the user's preferred editor.
+// Check the documentation of Editor.Edit and FindEditor for more information.
+func Edit(files ...*os.File) error {
+	var err error
+	if selectedEditor == nil {
+		if selectedEditor, err = FindEditor(); err != nil {
+			return err
+		}
+	}
+
+	return selectedEditor.Edit(files...)
+}
+
 // Edit will start a new process and wait for the process to exit.
 // If process exists with non 0 status, this will be reported as an error
-func (e *Editor) Edit(f ...*os.File) error {
+func (e *Editor) Edit(files ...*os.File) error {
 	var err error
 
-	if err = e.Start(f...); err != nil {
+	if err = e.Start(files...); err != nil {
 		return err
 	}
 
