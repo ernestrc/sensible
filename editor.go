@@ -5,8 +5,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 )
+
+const bugMessage = "This is a bug in sensible-editor; please file at https://github.com/ernestrc/sensible-editor/issues"
 
 // inspired by i3-sensible-editor
 // The order has been altered to make the world a better place
@@ -14,7 +17,8 @@ var editors = []string{"$EDITOR", "$VISUAL", "vim", "nvim", "vi", "emacs", "nano
 var basePath = []string{"/usr/local/bin", "/usr/bin", "/usr/sbin", "/bin"}
 
 var userPath []string
-var selected string
+var selectedExec string
+var selectedArgs []string
 var selectedEditor *Editor
 
 func init() {
@@ -34,23 +38,45 @@ func isExecutable(f os.FileInfo) bool {
 	return f.Mode().Perm()|0111 != 0
 }
 
-func findExec(name string) (execPath string, err error) {
+func getFileName(f os.FileInfo) string {
+	_, fileName := filepath.Split(f.Name())
+	return fileName
+}
+
+func isRegularOrSymlink(finfo os.FileInfo) bool {
+	mode := finfo.Mode()
+	return mode.IsRegular() || mode&os.ModeSymlink != 0
+}
+
+func parseAlias(alias string) (name string, args []string) {
+	split := strings.Split(alias, " ")
+	if len(split) == 0 {
+		return "", nil
+
+	}
+	_, name = filepath.Split(split[0])
+	return name, split[1:]
+}
+
+func findExec(alias string) (execPath string, execArgs []string, err error) {
 	var files []os.FileInfo
+	name, args := parseAlias(alias)
 
 	for _, dir := range userPath {
 		if files, err = ioutil.ReadDir(dir); err != nil {
 			return
 		}
-		for _, file := range files {
-			if file.Mode().IsRegular() &&
-				isExecutable(file) &&
-				file.Name() == name {
+		for _, finfo := range files {
+			if isRegularOrSymlink(finfo) &&
+				isExecutable(finfo) &&
+				getFileName(finfo) == name {
 				execPath = path.Join(dir, name)
+				execArgs = args
 				return
 			}
 		}
 	}
-	return "", nil
+	return "", nil, nil
 }
 
 func (e *Editor) clean() {
@@ -58,19 +84,30 @@ func (e *Editor) clean() {
 	e.procState = nil
 }
 
-// Editor stores the information about an editor and its processes
-type Editor struct {
-	path      string
-	proc      *os.Process
-	procState *os.ProcessState
-	// extra process attributes to be passed to the editor process
-	// for fine-grained control.
-	ProcAttrs *os.ProcAttr
+func findEditor(editors []string) (editor *Editor, err error) {
+	// cached
+	if selectedExec != "" {
+		if selectedArgs == nil {
+			panic(fmt.Sprintf("parsed args is empty but selected has been cached. %s", bugMessage))
+		}
+		return NewEditor(selectedExec, selectedArgs...), nil
+	}
+	for _, editor := range editors {
+		selectedExec, selectedArgs, err = findExec(editor)
+		if err != nil {
+			return nil, err
+		}
+		if selectedExec != "" {
+			return NewEditor(selectedExec, selectedArgs...), nil
+		}
+	}
+
+	return nil, fmt.Errorf("FindEditor: could not find an editor; please set $VISUAL or $EDITOR environment variables or install one of the following editors: %v", editors)
 }
 
 // NewEditor will create a new Editor struct with the given executable path
-func NewEditor(abspath string) *Editor {
-	return &Editor{path: abspath}
+func NewEditor(abspath string, args ...string) *Editor {
+	return &Editor{path: abspath, Args: args}
 }
 
 // FindEditor will attempt to find the user's preferred editor
@@ -78,21 +115,7 @@ func NewEditor(abspath string) *Editor {
 // or will default to one of the commonly installed editors.
 // Failure to find a suitable editor will result in an error
 func FindEditor() (editor *Editor, err error) {
-	// cached
-	if selected != "" {
-		return NewEditor(selected), nil
-	}
-	for _, editor := range editors {
-		selected, err = findExec(editor)
-		if err != nil {
-			return nil, err
-		}
-		if selected != "" {
-			return NewEditor(selected), nil
-		}
-	}
-
-	return nil, fmt.Errorf("FindEditor: could not find an editor; please set $VISUAL or $EDITOR environment variables or install one of the following editors: %v", editors)
+	return findEditor(editors)
 }
 
 // Edit will attempt to edit the passed files with the user's preferred editor.
@@ -106,6 +129,17 @@ func Edit(files ...*os.File) error {
 	}
 
 	return selectedEditor.Edit(files...)
+}
+
+// Editor stores the information about an editor and its processes
+type Editor struct {
+	path      string
+	proc      *os.Process
+	procState *os.ProcessState
+	// extra arguments to be passed to the editor process before filename(s)
+	Args []string
+	// extra process attributes to be used when spawning editor process
+	ProcAttrs *os.ProcAttr
 }
 
 // GetPath returns the editors executable path
@@ -137,6 +171,12 @@ func (e *Editor) Start(f ...*os.File) error {
 
 	args := []string{""}
 	var fds = []*os.File{os.Stdin, os.Stdout, os.Stderr}
+
+	if e.Args != nil {
+		for _, arg := range e.Args {
+			args = append(args, arg)
+		}
+	}
 
 	for _, file := range f {
 		args = append(args, file.Name())
