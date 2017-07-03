@@ -11,7 +11,7 @@ package main
 import (
 	"fmt"
 
-	editor "github.com/ernestrc/sensible/editor"
+	"github.com/ernestrc/sensible/editor"
 )
 
 func main() {
@@ -34,7 +34,7 @@ package main
 import (
 	"io/ioutil"
 
-	editor "github.com/ernestrc/sensible/editor"
+	"github.com/ernestrc/sensible/editor"
 )
 
 func main() {
@@ -46,3 +46,6 @@ func main() {
 ```
 
 `go run` some of the [examples](examples) to see more advanced use-cases.
+
+# Documentation
+[http://godoc.org/github.com/ernestrc/sensible/editor](http://godoc.org/github.com/ernestrc/sensible/editor)
