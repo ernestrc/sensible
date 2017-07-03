@@ -13,5 +13,5 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println(editor)
+	fmt.Println(editor.GetPath())
 }

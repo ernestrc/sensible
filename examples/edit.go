@@ -13,5 +13,10 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println(editor)
+	var out string
+	if out, err = editor.EditTmp("what do you want to print?"); err != nil {
+		panic(err)
+	}
+
+	fmt.Println(out)
 }

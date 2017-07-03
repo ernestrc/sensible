@@ -108,6 +108,11 @@ func Edit(files ...*os.File) error {
 	return selectedEditor.Edit(files...)
 }
 
+// GetPath returns the editors executable path
+func (e *Editor) GetPath() string {
+	return e.path
+}
+
 // Edit will start a new process and wait for the process to exit.
 // If process exists with non 0 status, this will be reported as an error
 func (e *Editor) Edit(files ...*os.File) error {
