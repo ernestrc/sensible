@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	editor "github.com/ernestrc/sensible-editor"
+	"github.com/ernestrc/sensible/editor"
 )
 
 func main() {

@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	editor "github.com/ernestrc/sensible-editor"
+	"github.com/ernestrc/sensible/editor"
 )
 
 func main() {

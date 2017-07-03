@@ -1,4 +1,4 @@
-# sensible-editor
+# sensible
 Utilities to find and spawn a sensible editor. 
 
 EDITOR and VISUAL environment variables are used first to find the user's preferred editor. If these are not set, a list of commonly installed editors is used.
@@ -11,7 +11,7 @@ package main
 import (
 	"fmt"
 
-	editor "github.com/ernestrc/sensible-editor"
+	editor "github.com/ernestrc/sensible/editor"
 )
 
 func main() {
@@ -34,7 +34,7 @@ package main
 import (
 	"io/ioutil"
 
-	editor "github.com/ernestrc/sensible-editor"
+	editor "github.com/ernestrc/sensible/editor"
 )
 
 func main() {

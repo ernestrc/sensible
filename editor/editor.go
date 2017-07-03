@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const bugMessage = "This is a bug in sensible-editor; please file at https://github.com/ernestrc/sensible-editor/issues"
+const bugMessage = "This is a bug in sensible; please file at https://github.com/ernestrc/sensible/issues"
 
 // inspired by i3-sensible-editor
 // The order has been altered to make the world a better place
