@@ -1,3 +1,4 @@
+// Package editor is a collection of utilities to find and spawn a sensible editor
 package editor
 
 import (
