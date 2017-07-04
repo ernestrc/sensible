@@ -132,6 +132,20 @@ func Edit(files ...*os.File) error {
 	return selectedEditor.Edit(files...)
 }
 
+// EditTmp will place the contents of "in" in a temp file,
+// start a editor process to edit the tmp file, and return
+// the contents of the tmp file after the process exits, or an error
+// if editor exited with non 0 status
+func EditTmp(in string) (out string, err error) {
+	if selectedEditor == nil {
+		if selectedEditor, err = FindEditor(); err != nil {
+			return
+		}
+	}
+
+	return selectedEditor.EditTmp(in)
+}
+
 // Editor stores the information about an editor and its processes
 type Editor struct {
 	path      string
@@ -226,7 +240,7 @@ func (e *Editor) Wait() error {
 	return nil
 }
 
-// EditTmp will place the contents of in in a temp file,
+// EditTmp will place the contents of "in" in a temp file,
 // start a editor process to edit the tmp file, and return
 // the contents of the tmp file after the process exits, or an error
 // if editor exited with non 0 status
