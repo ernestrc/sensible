@@ -5,79 +5,24 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
-	"path/filepath"
-	"strings"
-)
 
-const bugMessage = "This is a bug in sensible; please file at https://github.com/ernestrc/sensible/issues"
+	"github.com/ernestrc/sensible/find"
+)
 
 // inspired by i3-sensible-editor
 // The order has been altered to make the world a better place
-var editors = []string{"$EDITOR", "$VISUAL", "vim", "nvim", "vi", "emacs", "nano", "pico", "qe", "mg", "jed", "gedit", "mc-edit"}
-var basePath = []string{"/usr/local/bin", "/usr/bin", "/usr/sbin", "/bin"}
+var editors = []string{ /* "$EDITOR", "$VISUAL", */ "vim", "nvim", "vi", "emacs", "nano", "pico", "qe", "mg", "jed", "gedit", "mc-edit"}
 
-var userPath []string
 var selectedExec string
-var selectedArgs []string
 var selectedEditor *Editor
 
 func init() {
-	editors[0] = os.Getenv("EDITOR")
-	editors[1] = os.Getenv("VISUAL")
-
-	pathEnv := os.Getenv("PATH")
-
-	if pathEnv == "" {
-		userPath = basePath
-	} else {
-		userPath = strings.Split(pathEnv, ":")
+	if editor := os.Getenv("VISUAL"); editor != "" {
+		editors = append([]string{editor}, editors...)
 	}
-}
-
-func isExecutable(f os.FileInfo) bool {
-	return f.Mode().Perm()|0111 != 0
-}
-
-func getFileName(f os.FileInfo) string {
-	_, fileName := filepath.Split(f.Name())
-	return fileName
-}
-
-func isRegularOrSymlink(finfo os.FileInfo) bool {
-	mode := finfo.Mode()
-	return mode.IsRegular() || mode&os.ModeSymlink != 0
-}
-
-func parseAlias(alias string) (name string, args []string) {
-	split := strings.Split(alias, " ")
-	if len(split) == 0 {
-		return "", nil
-
+	if editor := os.Getenv("EDITOR"); editor != "" {
+		editors = append([]string{editor}, editors...)
 	}
-	_, name = filepath.Split(split[0])
-	return name, split[1:]
-}
-
-func findExec(alias string) (execPath string, execArgs []string, err error) {
-	var files []os.FileInfo
-	name, args := parseAlias(alias)
-
-	for _, dir := range userPath {
-		if files, err = ioutil.ReadDir(dir); err != nil {
-			return
-		}
-		for _, finfo := range files {
-			if isRegularOrSymlink(finfo) &&
-				isExecutable(finfo) &&
-				getFileName(finfo) == name {
-				execPath = path.Join(dir, name)
-				execArgs = args
-				return
-			}
-		}
-	}
-	return "", nil, nil
 }
 
 func (e *Editor) clean() {
@@ -88,18 +33,15 @@ func (e *Editor) clean() {
 func findEditor(editors []string) (editor *Editor, err error) {
 	// cached
 	if selectedExec != "" {
-		if selectedArgs == nil {
-			panic(fmt.Sprintf("parsed args is empty but selected has been cached. %s", bugMessage))
-		}
-		return NewEditor(selectedExec, selectedArgs...), nil
+		return NewEditor(selectedExec), nil
 	}
 	for _, editor := range editors {
-		selectedExec, selectedArgs, err = findExec(editor)
+		selectedExec, err = find.Executable(editor)
 		if err != nil {
 			return nil, err
 		}
 		if selectedExec != "" {
-			return NewEditor(selectedExec, selectedArgs...), nil
+			return NewEditor(selectedExec), nil
 		}
 	}
 
@@ -185,14 +127,11 @@ func (e *Editor) Start(f ...*os.File) error {
 	}
 
 	args := []string{""}
-	var fds = []*os.File{os.Stdin, os.Stdout, os.Stderr}
-
-	if e.Args != nil {
-		for _, arg := range e.Args {
-			args = append(args, arg)
-		}
+	for _, arg := range e.Args {
+		args = append(args, arg)
 	}
 
+	var fds = []*os.File{os.Stdin, os.Stdout, os.Stderr}
 	for _, file := range f {
 		args = append(args, file.Name())
 		fds = append(fds, file)
@@ -248,9 +187,10 @@ func (e *Editor) EditTmp(in string) (out string, err error) {
 	var f *os.File
 	var outBytes []byte
 
-	if f, err = ioutil.TempFile("/tmp", "sedit_"); err != nil {
+	if f, err = os.CreateTemp("", "sensible_edit_"); err != nil {
 		return
 	}
+	defer f.Close()
 
 	if err = ioutil.WriteFile(f.Name(), []byte(in), 0600); err != nil {
 		return

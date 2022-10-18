@@ -7,7 +7,6 @@ import (
 
 func resetGlobal() {
 	selectedExec = ""
-	selectedArgs = nil
 	selectedEditor = nil
 }
 
@@ -31,25 +30,5 @@ func TestEnvPath(t *testing.T) {
 		t.Error(err)
 	} else {
 		assertEditor(t, ed, "/usr/bin/vi", nil)
-	}
-}
-
-func TestAliasWithArgs(t *testing.T) {
-	resetGlobal()
-	editors := []string{"vim -e"}
-	if ed, err := findEditor(editors); err != nil {
-		t.Error(err)
-	} else {
-		assertEditor(t, ed, "/usr/bin/vim", []string{"-e"})
-	}
-}
-
-func TestAbsolutePath(t *testing.T) {
-	resetGlobal()
-	editors := []string{"/usr/bin/vim"}
-	if ed, err := findEditor(editors); err != nil {
-		t.Error(err)
-	} else {
-		assertEditor(t, ed, "/usr/bin/vim", nil)
 	}
 }
