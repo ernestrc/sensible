@@ -116,10 +116,19 @@ func (e *Pager) Start(r io.Reader) error {
 	if err != nil {
 		return err
 	}
+
 	defer f.Close()
 	defer os.Remove(f.Name())
 
 	if _, err = io.Copy(f, r); err != nil {
+		return err
+	}
+
+	if err := f.Sync(); err != nil {
+		return err
+	}
+
+	if _, err := f.Seek(0, 0); err != nil {
 		return err
 	}
 
