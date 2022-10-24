@@ -2,6 +2,7 @@ package find
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -33,8 +34,7 @@ func isRegularOrSymlink(finfo os.FileInfo) bool {
 }
 
 // Executable finds the given executable in the host. It returns the executable's
-// path and default arguments or an error if the given executable could not
-// be found on the host.
+// path or an error if the given executable could not be found on the host.
 func Executable(name string) (execPath string, err error) {
 	if name == "" {
 		err = errors.New("invalid argument: empty name")
@@ -55,5 +55,5 @@ func Executable(name string) (execPath string, err error) {
 			}
 		}
 	}
-	return "", nil
+	return "", fmt.Errorf("could not find %q in path", name)
 }
