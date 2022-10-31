@@ -3,10 +3,11 @@ package find
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
+
+	multierr "github.com/ernestrc/go-multierror"
 )
 
 var (
@@ -24,36 +25,38 @@ func init() {
 	}
 }
 
-func isExecutable(f os.FileInfo) bool {
-	return f.Mode().Perm()|0111 != 0
+func isExecutable(f os.FileMode) bool {
+	return f.Perm()|0111 != 0
 }
 
-func isRegularOrSymlink(finfo os.FileInfo) bool {
-	mode := finfo.Mode()
+func isRegularOrSymlink(mode os.FileMode) bool {
 	return mode.IsRegular() || mode&os.ModeSymlink != 0
 }
 
 // Executable finds the given executable in the host. It returns the executable's
-// path or an error if the given executable could not be found on the host.
-func Executable(name string) (execPath string, err error) {
+// path or an error if the given executable could not be found on the host along
+// with any errors incurred while reading the directories in PATH.
+func Executable(name string) (execPath string, ret error) {
 	if name == "" {
-		err = errors.New("invalid argument: empty name")
+		ret = errors.New("invalid argument: empty name")
 		return
 	}
 
-	var files []os.FileInfo
 	for _, dir := range userPath {
-		if files, err = ioutil.ReadDir(dir); err != nil {
-			return
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			ret = multierr.Append(ret, err)
 		}
-		for _, finfo := range files {
-			if isRegularOrSymlink(finfo) &&
-				isExecutable(finfo) &&
-				finfo.Name() == name {
+		for _, entry := range files {
+			if isRegularOrSymlink(entry.Type()) &&
+				isExecutable(entry.Type()) &&
+				entry.Name() == name {
 				execPath = path.Join(dir, name)
+				ret = nil
 				return
 			}
 		}
 	}
-	return "", fmt.Errorf("could not find %q in path", name)
+	ret = multierr.Append(ret, fmt.Errorf("could not find %q in path", name))
+	return
 }
