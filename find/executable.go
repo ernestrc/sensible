@@ -45,7 +45,10 @@ func Executable(name string) (execPath string, ret error) {
 	for _, dir := range userPath {
 		files, err := os.ReadDir(dir)
 		if err != nil {
-			ret = multierr.Append(ret, err)
+			if !os.IsNotExist(err) && !os.IsPermission(err) {
+				ret = multierr.Append(ret, err)
+			}
+			continue
 		}
 		for _, entry := range files {
 			if isRegularOrSymlink(entry.Type()) &&
