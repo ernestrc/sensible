@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 
 	"github.com/ernestrc/sensible/find"
 )
@@ -24,8 +25,7 @@ func init() {
 }
 
 func (e *Pager) clean() {
-	e.proc = nil
-	e.procState = nil
+	e.cmd = nil
 }
 
 func findPager(pagers []string) (pager *Pager, err error) {
@@ -74,13 +74,10 @@ func PageReader(r io.Reader) error {
 
 // Pager stores the information about a pager and its processes
 type Pager struct {
-	path      string
-	proc      *os.Process
-	procState *os.ProcessState
+	path string
 	// extra arguments to be passed to the pager process before filename(s)
 	Args []string
-	// extra process attributes to be used when spawning pager process
-	ProcAttrs *os.ProcAttr
+	cmd  *exec.Cmd
 }
 
 // GetPath returns the pagers executable path
@@ -108,54 +105,25 @@ func (e *Pager) PageReader(r io.Reader) error {
 // Start will start a new process and pass the given io.Reader
 // to the Pager's standard input for it to render it.
 func (e *Pager) Start(r io.Reader) error {
-	if e.proc != nil {
+	if e.cmd != nil {
 		return fmt.Errorf("Pager.Start: there is already an ongoing session")
 	}
 
-	f, err := os.CreateTemp("", "sensible_pager_")
-	if err != nil {
-		return err
-	}
-
-	defer f.Close()
-	defer os.Remove(f.Name())
-
-	if _, err = io.Copy(f, r); err != nil {
-		return err
-	}
-
-	if err := f.Sync(); err != nil {
-		return err
-	}
-
-	if _, err := f.Seek(0, 0); err != nil {
-		return err
-	}
-
 	args := []string{""}
-	var fds = []*os.File{f, os.Stdout, os.Stderr}
 
 	for _, arg := range e.Args {
 		args = append(args, arg)
 	}
 
-	var procAttrs *os.ProcAttr
-	if e.ProcAttrs == nil {
-		procAttrs = &os.ProcAttr{
-			Dir:   "",
-			Env:   nil,
-			Files: fds,
-			Sys:   nil,
-		}
-	} else {
-		procAttrs = e.ProcAttrs
+	e.cmd = &exec.Cmd{
+		Path:   e.path,
+		Args:   args,
+		Stdin:  r,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
 	}
 
-	if e.proc, err = os.StartProcess(e.path, args, procAttrs); err != nil {
-		return err
-	}
-
-	return nil
+	return e.cmd.Start()
 }
 
 // Wait waits for the current pager process to exit and returns
@@ -163,16 +131,12 @@ func (e *Pager) Start(r io.Reader) error {
 func (e *Pager) Wait() error {
 	var err error
 
-	if e.proc == nil {
+	if e.cmd == nil {
 		return fmt.Errorf("Pager.Wait: no process is currently running")
 	}
 
-	if e.procState, err = e.proc.Wait(); err != nil {
+	if err = e.cmd.Wait(); err != nil {
 		return err
-	}
-
-	if !e.procState.Success() {
-		return fmt.Errorf("Pager.Wait: pager process exited with non 0 status: %s", e.procState.String())
 	}
 
 	e.clean()
