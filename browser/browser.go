@@ -126,7 +126,8 @@ func (e *Browser) Start(u ...*url.URL) error {
 
 	var err error
 	if e.proc, err = os.StartProcess(e.path, args, procAttrs); err != nil {
-		return err
+		return fmt.Errorf("start browser process: %v. "+
+			"Make sure that $BROWSER environment variable is set correctly", err)
 	}
 
 	return nil
